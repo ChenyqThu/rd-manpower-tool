@@ -8,8 +8,8 @@ WORKDIR /app
 # 复制 package 文件
 COPY package*.json ./
 
-# 安装依赖
-RUN npm ci --only=production
+# 安装所有依赖（包括开发依赖）
+RUN npm ci
 
 # 复制源代码
 COPY . .
@@ -35,4 +35,4 @@ EXPOSE 80
 
 # 设置启动命令
 ENTRYPOINT ["/docker-entrypoint.sh"]
-CMD ["nginx", "-g", "daemon off;"] 
+CMD ["nginx", "-g", "daemon off;"]
