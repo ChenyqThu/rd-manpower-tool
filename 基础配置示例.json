@@ -1,0 +1,170 @@
+{
+  "teams": [
+    {
+      "id": "team-1",
+      "name": "前端团队",
+      "capacity": 12,
+      "description": "负责Web和移动端前端开发",
+      "color": "#3498db",
+      "badge": "①"
+    },
+    {
+      "id": "team-2",
+      "name": "后端团队",
+      "capacity": 15,
+      "description": "负责核心服务和API开发",
+      "color": "#e74c3c",
+      "badge": "②"
+    },
+    {
+      "id": "team-3",
+      "name": "数据团队",
+      "capacity": 8,
+      "description": "负责大数据平台和AI算法",
+      "color": "#2ecc71",
+      "badge": "③"
+    },
+    {
+      "id": "team-4",
+      "name": "测试团队",
+      "capacity": 6,
+      "description": "负责质量保证和自动化测试",
+      "color": "#f39c12",
+      "badge": "④"
+    },
+    {
+      "id": "team-5",
+      "name": "运维团队",
+      "capacity": 5,
+      "description": "负责基础设施和DevOps",
+      "color": "#9b59b6",
+      "badge": "⑤"
+    },
+    {
+      "id": "team-6",
+      "name": "产品团队",
+      "capacity": 4,
+      "description": "负责需求分析和产品设计",
+      "color": "#1abc9c",
+      "badge": "⑥"
+    }
+  ],
+  "projects": [
+    {
+      "id": "project-1",
+      "name": "CRM系统 v2.0",
+      "status": "development",
+      "color": "#3498db",
+      "description": "核心客户关系管理系统重构",
+      "teams": ["team-1", "team-2", "team-4"],
+      "releaseDate": "2024-07",
+      "pattern": "solid"
+    },
+    {
+      "id": "project-2",
+      "name": "数据分析平台",
+      "status": "development",
+      "color": "#e74c3c",
+      "description": "企业级数据分析和BI平台",
+      "teams": ["team-2", "team-3", "team-6"],
+      "releaseDate": "2024-10",
+      "pattern": "solid"
+    },
+    {
+      "id": "project-3",
+      "name": "移动端App",
+      "status": "planning",
+      "color": "#2ecc71",
+      "description": "移动端客户应用开发",
+      "teams": ["team-1", "team-2"],
+      "releaseDate": "2024-10",
+      "pattern": "stripes"
+    },
+    {
+      "id": "project-4",
+      "name": "用户中心升级",
+      "status": "development",
+      "color": "#f39c12",
+      "description": "统一用户认证和权限系统",
+      "teams": ["team-2", "team-5"],
+      "releaseDate": "2024-04",
+      "pattern": "dots"
+    },
+    {
+      "id": "project-5",
+      "name": "监控平台",
+      "status": "development",
+      "color": "#9b59b6",
+      "description": "系统性能监控和告警平台",
+      "teams": ["team-5", "team-3"],
+      "releaseDate": "2024-07",
+      "pattern": "dots"
+    },
+    {
+      "id": "project-6",
+      "name": "API网关优化",
+      "status": "planning",
+      "color": "#1abc9c",
+      "description": "微服务API网关性能优化",
+      "teams": ["team-2", "team-5"],
+      "releaseDate": "2024-10",
+      "pattern": "dots"
+    },
+    {
+      "id": "project-7",
+      "name": "AI智能助手",
+      "status": "planning",
+      "color": "#e67e22",
+      "description": "基于AI的智能客服助手",
+      "teams": ["team-3", "team-1"],
+      "releaseDate": "2024-12",
+      "pattern": "stripes"
+    },
+    {
+      "id": "project-8",
+      "name": "微服务架构",
+      "status": "planning",
+      "color": "#34495e",
+      "description": "系统微服务化改造",
+      "teams": ["team-2", "team-5"],
+      "releaseDate": "2024-12",
+      "pattern": "stripes"
+    }
+  ],
+  "timePoints": [
+    {
+      "id": "time-1",
+      "name": "Q1启动期",
+      "date": "2024-01",
+      "description": "项目启动和需求分析",
+      "type": "current"
+    },
+    {
+      "id": "time-2",
+      "name": "Q2开发期",
+      "date": "2024-04",
+      "description": "核心功能开发阶段",
+      "type": "release"
+    },
+    {
+      "id": "time-3",
+      "name": "Q3发布期",
+      "date": "2024-07",
+      "description": "产品发布和上线",
+      "type": "release"
+    },
+    {
+      "id": "time-4",
+      "name": "Q4优化期",
+      "date": "2024-10",
+      "description": "性能优化和下轮规划",
+      "type": "planning"
+    }
+  ],
+  "metadata": {
+    "company": "星云科技",
+    "scenario": "SaaS企业研发团队人力分配",
+    "exportTime": "2024-12-19T10:30:00.000Z",
+    "version": "2.0"
+  }
+} 
