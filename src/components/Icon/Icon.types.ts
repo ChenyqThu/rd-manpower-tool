@@ -93,7 +93,9 @@ export type IconName =
   | 'share'
   | 'print'
   | 'lock'
-  | 'unlock';
+  | 'unlock'
+  | 'calculate'
+  | 'info-circle';
 
 export interface IconProps extends Omit<SVGAttributes<SVGElement>, 'color'> {
   /**

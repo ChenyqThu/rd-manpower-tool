@@ -270,7 +270,7 @@ export const AllocationGrid: React.FC = () => {
         } else {
           alert('数据格式不正确，请选择正确的数据文件。');
         }
-      } catch (error) {
+      } catch {
         alert('文件读取失败，请检查文件格式。');
       }
     };
@@ -410,6 +410,40 @@ export const AllocationGrid: React.FC = () => {
     }
   };
 
+  // 人力预释自动校准功能
+  const handleAutoCalculatePrerelease = () => {
+    let updatedCount = 0;
+    
+    // 遍历所有时间点（除了最后一个）
+    for (let i = 0; i < sortedTimePoints.length - 1; i++) {
+      const currentTimePoint = sortedTimePoints[i];
+      const nextTimePoint = sortedTimePoints[i + 1];
+      
+      // 遍历所有项目和团队
+      for (const project of projects) {
+        for (const team of teams) {
+          const currentAllocation = getCellValue(currentTimePoint.id, project.id, team.id);
+          const nextAllocation = getCellValue(nextTimePoint.id, project.id, team.id);
+          
+          // 计算人力预释 = 当前时间点的投入 - 下一时间点的投入
+          const calculatedPrerelease = Math.max(0, currentAllocation.occupied - nextAllocation.occupied);
+          
+          // 如果计算出的预释值与当前预释值不同，则更新
+          if (calculatedPrerelease !== currentAllocation.prerelease) {
+            updateAllocation(currentTimePoint.id, project.id, team.id, {
+              ...currentAllocation,
+              prerelease: calculatedPrerelease
+            });
+            updatedCount++;
+          }
+        }
+      }
+    }
+    
+    // 显示完成提示
+    alert(`人力预释自动校准完成！共更新了 ${updatedCount} 个预释数据。`);
+  };
+
   const statistics = getStatistics();
 
   return (
@@ -485,6 +519,13 @@ export const AllocationGrid: React.FC = () => {
                   title="导出Excel"
                 >
                   <Icon name="document" size="sm" />
+                </button>
+                <button
+                  onClick={handleAutoCalculatePrerelease}
+                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                  title="人力预释自动校准：根据相邻时间点的人力投入自动计算预释数据"
+                >
+                  <Icon name="calculate" size="sm" />
                 </button>
                 <button
                   onClick={() => {

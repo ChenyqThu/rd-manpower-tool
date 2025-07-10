@@ -11,6 +11,7 @@ import { ConfigImportExport } from './modules/config/ConfigImportExport';
 import { AllocationGrid } from './modules/allocation/AllocationGrid';
 import { SankeyChart } from './modules/visualization/SankeyChart';
 import { DistributionChart } from './modules/visualization/DistributionChart';
+import { ProjectBarChart } from './modules/visualization/ProjectBarChart';
 import { exportDashboardToHTML } from './utils/exportDashboard';
 import omadaLogoUrl from './assets/omadalogotea.png';
 
@@ -91,6 +92,7 @@ function App() {
             </div>
           </div>
           
+          <ProjectBarChart />
           <SankeyChart />
           <DistributionChart />
         </div>
