@@ -552,7 +552,7 @@ export const SankeyChart: React.FC = () => {
         <div className="mt-4 p-3 bg-gray-50 rounded-lg">
           <h4 className="text-sm font-medium text-gray-900 mb-2">图表说明</h4>
           <div className="text-sm text-gray-600 space-y-1">
-            <p>• <strong>4列布局</strong>：团队 → 7月项目 → 9月项目 → 11月项目</p>
+            <p>• <strong>多列布局</strong>：每列表示特定时间点的人力分布状态</p>
             <p>• <strong>人员流动</strong>：每列只与前一列相关，优先项目继承，再从其他项目转移</p>
             <p>• <strong>团队匹配</strong>：人员转移时考虑团队类型对应关系</p>
             <p>• <strong>筛选功能</strong>：点击图例可筛选显示的团队和项目</p>

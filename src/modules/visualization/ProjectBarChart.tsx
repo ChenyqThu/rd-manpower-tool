@@ -339,7 +339,7 @@ export const ProjectBarChart: React.FC = () => {
                   onChange={(e) => setEndDate(e.target.value)}
                   className="text-xs border-0 bg-transparent focus:outline-none focus:ring-0 p-0 w-28"
                 />
-                <div className="relative group">
+                <div className="relative group flex">
                   <Icon 
                     name="info-circle" 
                     size="xs" 
