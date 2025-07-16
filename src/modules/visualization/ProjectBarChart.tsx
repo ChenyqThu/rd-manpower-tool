@@ -25,6 +25,35 @@ echarts.use([
   CanvasRenderer,
 ]);
 
+// 生成颜色渐变的工具函数
+const generateColorGradient = (baseColor: string, steps: number): string[] => {
+  const colors: string[] = [];
+  
+  // 将hex颜色转换为RGB
+  const hexToRgb = (hex: string) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 0, g: 0, b: 0 };
+  };
+
+  const rgb = hexToRgb(baseColor);
+  
+  for (let i = 0; i < steps; i++) {
+    // 从深到浅的渐变，第一个最深，最后一个最浅
+    const ratio = 1 - (i * 0.4 / Math.max(1, steps - 1)); // 最浅40%
+    const newR = Math.round(rgb.r + (255 - rgb.r) * (1 - ratio));
+    const newG = Math.round(rgb.g + (255 - rgb.g) * (1 - ratio));
+    const newB = Math.round(rgb.b + (255 - rgb.b) * (1 - ratio));
+    
+    colors.push(`rgb(${newR}, ${newG}, ${newB})`);
+  }
+  
+  return colors;
+};
+
 interface ProjectStatistics {
   id: string;
   name: string;
@@ -33,6 +62,17 @@ interface ProjectStatistics {
   totalManpower: number;
   releaseDate?: string;
   pattern?: string;
+  timePeriods: TimePeriodData[];
+}
+
+interface TimePeriodData {
+  name: string;
+  fromTimePoint: string;
+  toTimePoint: string;
+  manpower: number;
+  days: number;
+  totalManDays: number;
+  color: string;
 }
 
 export const ProjectBarChart: React.FC = () => {
@@ -46,6 +86,8 @@ export const ProjectBarChart: React.FC = () => {
   const [selectedTimePoints, setSelectedTimePoints] = useState<Set<string>>(
     new Set(timePoints.map(tp => tp.id))
   );
+
+  // 移除图例筛选状态管理，让ECharts自己处理
 
   // 计算默认截止时间（最后时间点年份的年底）
   const getDefaultEndDate = () => {
@@ -78,11 +120,15 @@ export const ProjectBarChart: React.FC = () => {
   const projectStatistics = useMemo((): ProjectStatistics[] => {
     return projects.map(project => {
       let totalManpower = 0;
+      const timePeriods: TimePeriodData[] = [];
       
       // 获取选中的时间点并按日期排序
       const selectedTimePointsData = sortedTimePoints.filter(tp => 
         selectedTimePoints.has(tp.id)
       );
+      
+      // 生成该项目的颜色渐变
+      const colors = generateColorGradient(project.color, selectedTimePointsData.length);
       
       // 如果只选择了一个时间点，按30天计算
       if (selectedTimePointsData.length === 1) {
@@ -94,7 +140,19 @@ export const ProjectBarChart: React.FC = () => {
             singlePeriodManpower += allocation.occupied;
           }
         }
-        totalManpower = singlePeriodManpower * 30; // 默认30天
+        const days = 30;
+        const manDays = singlePeriodManpower * days;
+        totalManpower = manDays;
+        
+        timePeriods.push({
+          name: `${timePoint.name} (30天)`,
+          fromTimePoint: timePoint.name,
+          toTimePoint: '(30天)',
+          manpower: singlePeriodManpower,
+          days,
+          totalManDays: manDays,
+          color: colors[0] || project.color,
+        });
       } else if (selectedTimePointsData.length > 1) {
         // 遍历选中的时间点（除了最后一个）
         for (let i = 0; i < selectedTimePointsData.length - 1; i++) {
@@ -114,7 +172,18 @@ export const ProjectBarChart: React.FC = () => {
           }
           
           // 计算人·天：人力投入 * 天数
-          totalManpower += currentPeriodManpower * daysBetween;
+          const manDays = currentPeriodManpower * daysBetween;
+          totalManpower += manDays;
+          
+          timePeriods.push({
+            name: `${currentTimePoint.name} → ${nextTimePoint.name}`,
+            fromTimePoint: currentTimePoint.name,
+            toTimePoint: nextTimePoint.name,
+            manpower: currentPeriodManpower,
+            days: daysBetween,
+            totalManDays: manDays,
+            color: colors[i] || project.color,
+          });
         }
         
         // 处理最后一个时间点：使用用户设置的截止时间
@@ -132,7 +201,19 @@ export const ProjectBarChart: React.FC = () => {
           }
         }
         
-        totalManpower += lastPeriodManpower * daysToEnd;
+        const lastManDays = lastPeriodManpower * daysToEnd;
+        totalManpower += lastManDays;
+        
+        const endDateStr = endDate ? new Date(endDate).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : '结束';
+        timePeriods.push({
+          name: `${lastTimePoint.name} → ${endDateStr}`,
+          fromTimePoint: lastTimePoint.name,
+          toTimePoint: endDateStr,
+          manpower: lastPeriodManpower,
+          days: daysToEnd,
+          totalManDays: lastManDays,
+          color: colors[selectedTimePointsData.length - 1] || project.color,
+        });
       }
       
       return {
@@ -143,26 +224,75 @@ export const ProjectBarChart: React.FC = () => {
         totalManpower,
         releaseDate: project.releaseDate,
         pattern: project.pattern,
+        timePeriods,
       };
     }).sort((a, b) => b.totalManpower - a.totalManpower); // 按人力投入降序排序
   }, [projects, teams, allocations, selectedTimePoints, sortedTimePoints, endDate]);
 
   // 准备图表配置
   const chartOptions = useMemo(() => {
-    const data = projectStatistics.map(project => ({
-      name: project.name,
-      value: project.totalManpower,
-      itemStyle: {
-        color: project.color,
-      },
-      // 存储额外信息供tooltip使用
-      status: project.status,
-      releaseDate: project.releaseDate,
-    }));
+    // 获取所有时间段的名称用于图例
+    const allTimePeriods = new Set<string>();
+    projectStatistics.forEach(project => {
+      project.timePeriods.forEach(period => {
+        allTimePeriods.add(period.name);
+      });
+    });
+    const timePeriodNames = Array.from(allTimePeriods);
+
+    // 准备Y轴数据（项目名称）
+    const projectNames = projectStatistics.map(p => p.name);
+
+    // 为每个时间段创建一个series
+    const series = timePeriodNames.map(periodName => {
+      const data = projectStatistics.map(project => {
+        const period = project.timePeriods.find(p => p.name === periodName);
+        return period ? {
+          value: period.totalManDays,
+          itemStyle: { color: period.color },
+          // 存储额外信息供tooltip使用
+          periodData: period,
+          projectData: {
+            id: project.id,
+            name: project.name,
+            status: project.status,
+            releaseDate: project.releaseDate,
+          }
+        } : {
+          value: 0,
+          itemStyle: { color: 'transparent' },
+          periodData: null,
+          projectData: {
+            id: project.id,
+            name: project.name,
+            status: project.status,
+            releaseDate: project.releaseDate,
+          }
+        };
+      });
+
+      return {
+        name: periodName,
+        type: 'bar',
+        stack: '总量',
+        data: data.reverse(), // 反转数据顺序，让投入多的在上面
+        barWidth: 20,
+        emphasis: {
+          focus: 'series',
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.1)',
+          },
+        },
+      };
+    });
+
+    // 不要在这里过滤series，而是通过图例的selected状态来控制显示
 
     return {
       title: {
-        text: '版本人力投入总览',
+        text: '版本人力投入总览（按时间段分组）',
         left: 'center',
         textStyle: {
           fontSize: 16,
@@ -170,33 +300,45 @@ export const ProjectBarChart: React.FC = () => {
         },
       },
       tooltip: {
-        trigger: 'axis',
-        axisPointer: {
-          type: 'shadow',
-        },
+        trigger: 'item',
         formatter: function (params: any) {
-          const data = params[0];
+          const { data } = params;
+          if (!data.periodData || data.value === 0) return '';
+          
           const statusMap: { [key: string]: string } = {
             'development': '开发中',
             'planning': '规划中',
             'release': '已发布',
             'completed': '已完成',
           };
+          
           return `
             <div style="margin: 0; padding: 8px;">
-              <div style="font-weight: bold; margin-bottom: 4px;">${data.name}</div>
-              <div style="color: #666; margin-bottom: 4px;">状态: ${statusMap[data.data.status] || data.data.status}</div>
-              ${data.data.releaseDate ? `<div style="color: #666; margin-bottom: 4px;">发布时间: ${data.data.releaseDate}</div>` : ''}
-              <div style="font-weight: bold; color: ${data.color};">总人力投入: ${data.value}人·天</div>
+              <div style="font-weight: bold; margin-bottom: 4px;">${data.projectData.name}</div>
+              <div style="color: #666; margin-bottom: 4px;">状态: ${statusMap[data.projectData.status] || data.projectData.status}</div>
+              ${data.projectData.releaseDate ? `<div style="color: #666; margin-bottom: 4px;">发布时间: ${data.projectData.releaseDate}</div>` : ''}
+              <div style="border-top: 1px solid #eee; margin: 8px 0; padding-top: 8px;">
+                <div style="font-weight: bold; color: ${params.color}; margin-bottom: 4px;">${data.periodData.name}</div>
+                <div style="color: #666;">人力投入: ${data.periodData.manpower}人</div>
+                <div style="color: #666;">时间跨度: ${data.periodData.days}天</div>
+                <div style="font-weight: bold; color: ${params.color};">总人·天: ${data.periodData.totalManDays}</div>
+              </div>
             </div>
           `;
         },
+      },
+      legend: {
+        type: 'scroll',
+        orient: 'horizontal',
+        top: 'bottom',
+        data: timePeriodNames,
+        selector: false, // 禁用图例的全选/反选按钮
       },
       grid: {
         left: '15%',
         right: '10%',
         top: '15%',
-        bottom: '10%',
+        bottom: '20%',
         containLabel: true,
       },
       xAxis: {
@@ -230,7 +372,7 @@ export const ProjectBarChart: React.FC = () => {
       },
       yAxis: {
         type: 'category',
-        data: data.map(d => d.name).reverse(), // 反转Y轴数据，让大的在上面
+        data: projectNames.reverse(), // 反转Y轴数据，让投入多的在上面
         axisLine: {
           show: false,
         },
@@ -244,29 +386,7 @@ export const ProjectBarChart: React.FC = () => {
           overflow: 'truncate',
         },
       },
-      series: [
-        {
-          name: '人力投入',
-          type: 'bar',
-          data: [...data].reverse(), // 同样反转series数据
-          barWidth: 20,
-          label: {
-            show: true,
-            position: 'right',
-            color: '#333',
-            fontSize: 11,
-            formatter: '{c}人·天',
-          },
-          emphasis: {
-            focus: 'series',
-            itemStyle: {
-              shadowBlur: 10,
-              shadowOffsetX: 0,
-              shadowColor: 'rgba(0, 0, 0, 0.1)',
-            },
-          },
-        },
-      ],
+      series: series,
     };
   }, [projectStatistics]);
 
@@ -289,6 +409,9 @@ export const ProjectBarChart: React.FC = () => {
       setSelectedTimePoints(new Set(timePoints.map(tp => tp.id)));
     }
   };
+
+  // 图表事件配置 - 移除自定义的图例处理，让ECharts自己管理
+  const chartEvents = {};
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
@@ -377,6 +500,7 @@ export const ProjectBarChart: React.FC = () => {
           <ReactEChartsCore
             echarts={echarts}
             option={chartOptions}
+            onEvents={chartEvents}
             style={{ height: '100%', width: '100%' }}
             notMerge={true}
             lazyUpdate={true}

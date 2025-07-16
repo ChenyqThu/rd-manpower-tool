@@ -93,7 +93,7 @@ export const DistributionChart: React.FC = () => {
         // 折线图系列 - 按项目（版本）
         ...projects.map(() => ({
           type: 'line',
-          smooth: true,
+          smooth: false,
           seriesLayoutBy: 'row',
           emphasis: { focus: 'series' },
           lineStyle: {

@@ -292,9 +292,205 @@ export const exportDashboardToHTML = async (data: ExportData) => {
 
     return { source, sortedTimePoints };
   };
+
+  // 生成颜色渐变的工具函数
+  const generateColorGradient = (baseColor: string, steps: number): string[] => {
+    const colors: string[] = [];
+    
+    const hexToRgb = (hex: string) => {
+      const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16)
+      } : { r: 0, g: 0, b: 0 };
+    };
+
+    const rgb = hexToRgb(baseColor);
+    
+    for (let i = 0; i < steps; i++) {
+      const ratio = 1 - (i * 0.4 / Math.max(1, steps - 1));
+      const newR = Math.round(rgb.r + (255 - rgb.r) * (1 - ratio));
+      const newG = Math.round(rgb.g + (255 - rgb.g) * (1 - ratio));
+      const newB = Math.round(rgb.b + (255 - rgb.b) * (1 - ratio));
+      
+      colors.push(`rgb(${newR}, ${newG}, ${newB})`);
+    }
+    
+    return colors;
+  };
+
+  // 计算两个时间点之间的天数差
+  const calculateDaysBetween = (startDate: string, endDate: string): number => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  // 准备ProjectBarChart数据
+  const prepareProjectBarData = () => {
+    const sortedTimePoints = [...timePoints].sort((a, b) => a.date.localeCompare(b.date));
+    const currentYear = new Date().getFullYear();
+    const endDate = `${currentYear}-12-31`;
+
+    const projectStatistics = projects.map(project => {
+      let totalManpower = 0;
+      const timePeriods: any[] = [];
+      
+      const colors = generateColorGradient(project.color, sortedTimePoints.length);
+      
+      if (sortedTimePoints.length === 1) {
+        const timePoint = sortedTimePoints[0];
+        let singlePeriodManpower = 0;
+        teams.forEach(team => {
+          const allocation = allocations[timePoint.id]?.[project.id]?.[team.id];
+          if (allocation) {
+            singlePeriodManpower += allocation.occupied;
+          }
+        });
+        const days = 30;
+        const manDays = singlePeriodManpower * days;
+        totalManpower = manDays;
+        
+        timePeriods.push({
+          name: `${timePoint.name} (30天)`,
+          fromTimePoint: timePoint.name,
+          toTimePoint: '(30天)',
+          manpower: singlePeriodManpower,
+          days,
+          totalManDays: manDays,
+          color: colors[0] || project.color,
+        });
+      } else if (sortedTimePoints.length > 1) {
+        for (let i = 0; i < sortedTimePoints.length - 1; i++) {
+          const currentTimePoint = sortedTimePoints[i];
+          const nextTimePoint = sortedTimePoints[i + 1];
+          
+          const daysBetween = calculateDaysBetween(currentTimePoint.date, nextTimePoint.date);
+          
+          let currentPeriodManpower = 0;
+          teams.forEach(team => {
+            const allocation = allocations[currentTimePoint.id]?.[project.id]?.[team.id];
+            if (allocation) {
+              currentPeriodManpower += allocation.occupied;
+            }
+          });
+          
+          const manDays = currentPeriodManpower * daysBetween;
+          totalManpower += manDays;
+          
+          timePeriods.push({
+            name: `${currentTimePoint.name} → ${nextTimePoint.name}`,
+            fromTimePoint: currentTimePoint.name,
+            toTimePoint: nextTimePoint.name,
+            manpower: currentPeriodManpower,
+            days: daysBetween,
+            totalManDays: manDays,
+            color: colors[i] || project.color,
+          });
+        }
+        
+        const lastTimePoint = sortedTimePoints[sortedTimePoints.length - 1];
+        const daysToEnd = calculateDaysBetween(lastTimePoint.date, endDate);
+        
+        let lastPeriodManpower = 0;
+        teams.forEach(team => {
+          const allocation = allocations[lastTimePoint.id]?.[project.id]?.[team.id];
+          if (allocation) {
+            lastPeriodManpower += allocation.occupied;
+          }
+        });
+        
+        const lastManDays = lastPeriodManpower * daysToEnd;
+        totalManpower += lastManDays;
+        
+        const endDateStr = new Date(endDate).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+        timePeriods.push({
+          name: `${lastTimePoint.name} → ${endDateStr}`,
+          fromTimePoint: lastTimePoint.name,
+          toTimePoint: endDateStr,
+          manpower: lastPeriodManpower,
+          days: daysToEnd,
+          totalManDays: lastManDays,
+          color: colors[sortedTimePoints.length - 1] || project.color,
+        });
+      }
+      
+      return {
+        id: project.id,
+        name: project.name,
+        status: project.status,
+        color: project.color,
+        totalManpower,
+        releaseDate: project.releaseDate,
+        pattern: project.pattern,
+        timePeriods,
+      };
+    }).sort((a, b) => b.totalManpower - a.totalManpower);
+
+    // 获取所有时间段的名称用于图例
+    const allTimePeriods = new Set<string>();
+    projectStatistics.forEach(project => {
+      project.timePeriods.forEach((period: any) => {
+        allTimePeriods.add(period.name);
+      });
+    });
+    const timePeriodNames = Array.from(allTimePeriods);
+
+    // 准备Y轴数据（项目名称）
+    const projectNames = projectStatistics.map(p => p.name);
+
+    // 为每个时间段创建一个series
+    const series = timePeriodNames.map(periodName => {
+      const data = projectStatistics.map(project => {
+        const period = project.timePeriods.find((p: any) => p.name === periodName);
+        return period ? {
+          value: period.totalManDays,
+          itemStyle: { color: period.color },
+          periodData: period,
+          projectData: {
+            id: project.id,
+            name: project.name,
+            status: project.status,
+            releaseDate: project.releaseDate,
+          }
+        } : {
+          value: 0,
+          itemStyle: { color: 'transparent' },
+          periodData: null,
+          projectData: {
+            id: project.id,
+            name: project.name,
+            status: project.status,
+            releaseDate: project.releaseDate,
+          }
+        };
+      });
+
+      return {
+        name: periodName,
+        type: 'bar',
+        stack: '总量',
+        data: data.reverse(),
+        barWidth: 20,
+        emphasis: {
+          focus: 'series',
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.1)',
+          },
+        },
+      };
+    });
+
+    return { projectStatistics, timePeriodNames, projectNames, series };
+  };
   
   const sankeyData = prepareSankeyData();
   const distributionData = prepareDistributionData();
+  const projectBarData = prepareProjectBarData();
   
   // 生成HTML内容
   const htmlContent = `
@@ -440,6 +636,45 @@ export const exportDashboardToHTML = async (data: ExportData) => {
         
         <div class="chart-container">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
+                <h2 class="chart-title" style="margin: 0;">版本人力投入总览（按时间段分组）</h2>
+                <div style="display: flex; gap: 16px; font-size: 14px; color: #6b7280;">
+                    <span>项目: ${projects.length}</span>
+                    <span>时间段: ${projectBarData.timePeriodNames.length}</span>
+                    <span>总计: ${projectBarData.projectStatistics.reduce((sum: number, p: any) => sum + p.totalManpower, 0)}人·天</span>
+                </div>
+            </div>
+            
+            <div class="legend-container">
+                <div class="legend-title" style="display: flex; align-items: center;">
+                    <span style="width: 12px; height: 12px; background-color: #6366f1; border-radius: 50%; margin-right: 8px;"></span>
+                    时间段筛选
+                </div>
+                <div class="legend-items">
+                    ${projectBarData.timePeriodNames.map(periodName => `
+                        <div class="legend-item">
+                            <div class="legend-color" style="background-color: #6366f1; opacity: 0.8;"></div>
+                            ${periodName}
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+            
+            <div id="projectBarChart" class="chart"></div>
+            
+            <div class="description" style="margin-top: 16px; padding: 12px; background-color: #f9fafb; border-radius: 6px;">
+                <h4 style="font-size: 14px; font-weight: 500; color: #111827; margin-bottom: 8px;">图表说明</h4>
+                <div style="font-size: 14px; color: #6b7280; line-height: 1.5;">
+                    <p style="margin-bottom: 4px;">• <strong>分段柱状图</strong>：每个版本按时间段分组显示人力投入</p>
+                    <p style="margin-bottom: 4px;">• <strong>颜色渐变</strong>：同项目不同时间段使用同色系渐变</p>
+                    <p style="margin-bottom: 4px;">• <strong>悬浮提示</strong>：显示详细的时间段、人力投入和人·天统计</p>
+                    <p style="margin-bottom: 4px;">• <strong>图例筛选</strong>：点击图例可筛选显示特定时间段</p>
+                    <p style="margin-bottom: 0;">• <strong>智能计算</strong>：自动计算时间跨度和人力投入的人·天数</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px;">
                 <h2 class="chart-title" style="margin: 0;">人力流动分析</h2>
                 <div style="display: flex; gap: 16px; font-size: 14px; color: #6b7280;">
                     <span>团队: ${teams.length}</span>
@@ -549,7 +784,112 @@ export const exportDashboardToHTML = async (data: ExportData) => {
     </div>
     
     <script>
-        // 桑基图配置
+        // ProjectBarChart配置 - 第一个图表
+        const projectBarChart = echarts.init(document.getElementById('projectBarChart'));
+        const projectBarData = ${JSON.stringify(projectBarData)};
+        
+        const projectBarOption = {
+            title: {
+                text: '版本人力投入总览（按时间段分组）',
+                left: 'center',
+                textStyle: {
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                },
+            },
+            tooltip: {
+                trigger: 'item',
+                formatter: function (params) {
+                    const { data } = params;
+                    if (!data.periodData || data.value === 0) return '';
+                    
+                    const statusMap = {
+                        'development': '开发中',
+                        'planning': '规划中',
+                        'release': '已发布',
+                        'completed': '已完成',
+                    };
+                    
+                    return \`
+                        <div style="margin: 0; padding: 8px;">
+                            <div style="font-weight: bold; margin-bottom: 4px;">\${data.projectData.name}</div>
+                            <div style="color: #666; margin-bottom: 4px;">状态: \${statusMap[data.projectData.status] || data.projectData.status}</div>
+                            \${data.projectData.releaseDate ? \`<div style="color: #666; margin-bottom: 4px;">发布时间: \${data.projectData.releaseDate}</div>\` : ''}
+                            <div style="border-top: 1px solid #eee; margin: 8px 0; padding-top: 8px;">
+                                <div style="font-weight: bold; color: \${params.color}; margin-bottom: 4px;">\${data.periodData.name}</div>
+                                <div style="color: #666;">人力投入: \${data.periodData.manpower}人</div>
+                                <div style="color: #666;">时间跨度: \${data.periodData.days}天</div>
+                                <div style="font-weight: bold; color: \${params.color};">总人·天: \${data.periodData.totalManDays}</div>
+                            </div>
+                        </div>
+                    \`;
+                },
+            },
+            legend: {
+                type: 'scroll',
+                orient: 'horizontal',
+                top: 'bottom',
+                data: projectBarData.timePeriodNames,
+                selector: false, // 禁用图例的全选/反选按钮
+            },
+            grid: {
+                left: '15%',
+                right: '10%',
+                top: '15%',
+                bottom: '20%',
+                containLabel: true,
+            },
+            xAxis: {
+                type: 'value',
+                name: '人力投入 (人·天)',
+                nameLocation: 'middle',
+                nameGap: 30,
+                nameTextStyle: {
+                    fontSize: 12,
+                },
+                axisLine: {
+                    lineStyle: {
+                        color: '#e5e5e5',
+                    },
+                },
+                axisTick: {
+                    lineStyle: {
+                        color: '#e5e5e5',
+                    },
+                },
+                axisLabel: {
+                    color: '#666',
+                    fontSize: 11,
+                },
+                splitLine: {
+                    lineStyle: {
+                        color: '#f0f0f0',
+                        type: 'dashed',
+                    },
+                },
+            },
+            yAxis: {
+                type: 'category',
+                data: projectBarData.projectNames.reverse(),
+                axisLine: {
+                    show: false,
+                },
+                axisTick: {
+                    show: false,
+                },
+                axisLabel: {
+                    color: '#333',
+                    fontSize: 11,
+                    width: 120,
+                    overflow: 'truncate',
+                },
+            },
+            series: projectBarData.series,
+        };
+        
+        projectBarChart.setOption(projectBarOption);
+        
+        // 桑基图配置 - 第二个图表
         const sankeyChart = echarts.init(document.getElementById('sankeyChart'));
         const sankeyOption = {
             tooltip: {
@@ -696,7 +1036,7 @@ export const exportDashboardToHTML = async (data: ExportData) => {
             series: [
                 ...projects.map(() => ({
                     type: 'line',
-                    smooth: true,
+                    smooth: false,
                     seriesLayoutBy: 'row',
                     emphasis: { focus: 'series' },
                     lineStyle: { width: 2 },
@@ -751,6 +1091,7 @@ export const exportDashboardToHTML = async (data: ExportData) => {
         
         // 响应式处理
         window.addEventListener('resize', function() {
+            projectBarChart.resize();
             sankeyChart.resize();
             distributionChart.resize();
         });
